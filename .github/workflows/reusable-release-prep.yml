@@ -62,11 +62,12 @@ jobs:
           git config user.name "fedi-libs-release-bot[bot]"
           git config user.email "${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com"
           
-          git checkout ${{ inputs.base_branch }}
-          git checkout -b release/${{ inputs.tag_name }}
-          git read-tree -mu origin/${{ inputs.target_branch }}
-          
-          git commit --allow-empty -m "chore(release): release preparation for ${{ inputs.tag_name }}"
+          git fetch origin ${{ inputs.target_branch }}
+          git checkout -B release/${{ inputs.tag_name }} origin/${{ inputs.target_branch }}
+
+          git fetch origin ${{ inputs.base_branch }}
+          git merge origin/${{ inputs.base_branch }} -s ours -m "chore: ignore divergent history from stable [skip cliff]"
+
           git push origin release/${{ inputs.tag_name }} --force
 
       - name: Create Pull Request with gh
