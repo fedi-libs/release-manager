@@ -7,8 +7,8 @@
   //   "nodejs_compat"
   // ],
   "vars": {
-    "GITHUB_APP_ID": "",
-    "GITHUB_INSTALLATION_ID": "",
+    "GITHUB_APP_ID": "2886325",
+    "GITHUB_INSTALLATION_ID": "110735100",
   },
   "define": {
     "APP_VERSION": "\"$npm_package_version\""
