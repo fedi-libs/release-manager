@@ -51,12 +51,11 @@ app.post('/rm/hook', async (c) => {
       }),
     });
 
-    if (!dispatchRes.ok) {
-      console.log(await dispatchRes.json());
-    };
+    if (dispatchRes.status === 204) {
+      return c.body(null, 204);
+    }
     
-    const resTxt = dispatchRes.ok ? 'Success' : 'Dispatch Failed';
-    return c.text(resTxt, dispatchRes.status as any);
+    return c.text('Dispatch Failed', dispatchRes.status as any);
   } catch (err) {
     console.error(err);
     return c.text('Internal Server Error', 500);
