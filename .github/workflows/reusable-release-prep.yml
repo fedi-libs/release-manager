@@ -60,6 +60,6 @@ jobs:
         with:
           token: ${{ steps.app-token.outputs.token }}
           branch: release/${{ inputs.tag_name }}
-          title: "Release: v${{ inputs.tag_name }}"
+          title: "Release: ${{ inputs.tag_name }}"
           body: ${{ steps.changelog.outputs.body }}
           base: ${{ inputs.base_branch }}
