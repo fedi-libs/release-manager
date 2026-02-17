@@ -78,10 +78,19 @@ jobs:
             if (!pr.head.ref.startsWith('release/')) core.setFailed('Deployment only allowed for release branches');
             return pr;
 
+      - name: Checkout code
+        if: ${{ inputs.phase == '1' }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ fromJson(steps.get_pr.outputs.result).head.ref }}
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
       - name: Create GitHub Deployment
         if: ${{ inputs.phase == '1' }}
         id: create_deployment
         run: |
+          # outputs.result を fromJson 経由で参照
           REF="${{ fromJson(steps.get_pr.outputs.result).head.ref }}"
           DEPLOY_ID=$(gh api repos/:owner/:repo/deployments \
             -f ref="$REF" \
@@ -100,14 +109,6 @@ jobs:
             -f log_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-
-      - name: Checkout code
-        if: ${{ inputs.phase == '1' }}
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ fromJson(steps.get_pr.outputs.result).head.ref }}
-          fetch-depth: 0
-          token: ${{ steps.app-token.outputs.token }}
 
       - name: Generate RC Version
         if: ${{ inputs.phase == '1' }}

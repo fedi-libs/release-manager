@@ -45,14 +45,22 @@ jobs:
           app-id: ${{ secrets.app_id }}
           private-key: ${{ secrets.private_key }}
 
+      - name: Checkout code
+        if: ${{ inputs.phase == '1' }}
+        uses: actions/checkout@v4
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          fetch-depth: 0
+          
       - name: Create GitHub Deployment
         if: ${{ inputs.phase == '1' }}
         id: create_deployment
         run: |
+          REF="${{ fromJson(steps.get_pr.outputs.result).head.ref }}"
           DEPLOY_ID=$(gh api repos/:owner/:repo/deployments \
-            -f ref="${{ inputs.head_ref }}" \
+            -f ref="$REF" \
             -f environment="pypi" \
-            -f description="Publishing Formal Release to PyPI" \
+            -f description="Deploying release version" \
             --jq '.id')
           echo "deployment_id=$DEPLOY_ID" >> $GITHUB_OUTPUT
         env:
@@ -66,13 +74,6 @@ jobs:
             -f log_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-
-      - name: Checkout code
-        if: ${{ inputs.phase == '1' }}
-        uses: actions/checkout@v4
-        with:
-          token: ${{ steps.app-token.outputs.token }}
-          fetch-depth: 0
 
       - name: Setup uv
         if: ${{ inputs.phase == '1' }}
