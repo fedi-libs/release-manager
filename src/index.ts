@@ -34,7 +34,7 @@ app.post('/rm/hook', async (c) => {
   try {
     const jwt = await generateGitHubJWT(c.env.GITHUB_APP_ID, c.env.GITHUB_PRIVATE_KEY);
 
-    const authRes = await fetch(`https://api.github.com/app/installations/${json.installation.id}/access_tokens`, {
+    const authRes = await fetch(`https://api.github.com/app/installations/${c.env.GITHUB_INSTALLATION_ID}/access_tokens`, {
       method: 'POST',
       headers: { ...commonHeaders, 'Authorization': `Bearer ${jwt}` },
     });
