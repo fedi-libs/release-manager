@@ -2,7 +2,6 @@ import { Hono } from 'hono/quick';
 import { verifyGithubSignature } from './github';
 import { generateGitHubJWT } from './jwt';
 
-interface HonoEnv extends Env {} 
 declare const APP_VERSION: string;
 
 const app = new Hono<{ Bindings: Env }>()
@@ -43,8 +42,13 @@ app.post('/rm/hook', async (c) => {
     const repo = json.repository.full_name;
     const dispatchRes = await fetch(`https://api.github.com/repos/${repo}/dispatches`, {
       method: 'POST',
-      headers: { ...commonHeaders, 'Authorization': `Bearer ${token}`, 'event_type': 'on-draft-release-created' },
-      body: JSON.stringify({ ref: 'main' }),
+      headers: { ...commonHeaders, 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ 
+        event_type: 'on-draft-release-created',
+        client_payload: {
+          tag_name: json.release.tag_name
+        }
+      }),
     });
 
     if (!dispatchRes.ok) {
