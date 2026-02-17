@@ -118,6 +118,7 @@ jobs:
                 body: prBody,
                 draft: false
               });
+              console.log(`Published release: ${tagName}`);
             } else {
               core.setFailed(`No draft release found for tag: ${tagName}`);
             }
@@ -126,7 +127,8 @@ jobs:
         if: ${{ inputs.phase == '2' }}
         run: |
           TAG_NAME="${{ inputs.head_ref }}"
-          VERSION="${TAG_NAME#release/v}"
+          VERSION_TMP="${TAG_NAME#release/}"
+          VERSION="${VERSION_TMP#v}"
           
           gh api repos/:owner/:repo/deployments/${{ inputs.deployment_id }}/statuses \
             -f state="success" \
