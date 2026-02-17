@@ -12,6 +12,16 @@ on:
       pr_body:
         required: true
         type: string
+      package_name:
+        required: true
+        type: string
+      deployment_id:
+        required: false
+        type: string
+    outputs:
+      deployment_id:
+        description: "Generated Deployment ID"
+        value: ${{ jobs.publish.outputs.deployment_id }}
     secrets:
       app_id:
         required: true
@@ -23,7 +33,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      deployments: write
       id-token: write
+    outputs:
+      deployment_id: ${{ steps.create_deployment.outputs.deployment_id }}
     steps:
       - name: Create GitHub App Token
         id: app-token
@@ -31,6 +44,28 @@ jobs:
         with:
           app-id: ${{ secrets.app_id }}
           private-key: ${{ secrets.private_key }}
+
+      - name: Create GitHub Deployment
+        if: ${{ inputs.phase == '1' }}
+        id: create_deployment
+        run: |
+          DEPLOY_ID=$(gh api repos/:owner/:repo/deployments \
+            -f ref="${{ inputs.head_ref }}" \
+            -f environment="pypi" \
+            -f description="Publishing Formal Release to PyPI" \
+            --jq '.id')
+          echo "deployment_id=$DEPLOY_ID" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+
+      - name: Set Deployment In-Progress
+        if: ${{ inputs.phase == '1' }}
+        run: |
+          gh api repos/:owner/:repo/deployments/${{ steps.create_deployment.outputs.deployment_id }}/statuses \
+            -f state="in_progress" \
+            -f log_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
 
       - name: Checkout code
         if: ${{ inputs.phase == '1' }}
@@ -83,7 +118,18 @@ jobs:
                 body: prBody,
                 draft: false
               });
-              console.log(`Successfully published release: ${tagName}`);
             } else {
               core.setFailed(`No draft release found for tag: ${tagName}`);
             }
+
+      - name: Update Deployment Success
+        if: ${{ inputs.phase == '2' }}
+        run: |
+          TAG_NAME="${{ inputs.head_ref }}"
+          VERSION="${TAG_NAME#release/v}"
+          
+          gh api repos/:owner/:repo/deployments/${{ inputs.deployment_id }}/statuses \
+            -f state="success" \
+            -f environment_url="https://pypi.org/project/${{ inputs.package_name }}/${VERSION}/"
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
