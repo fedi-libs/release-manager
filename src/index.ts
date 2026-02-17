@@ -7,14 +7,21 @@ declare const APP_VERSION: string;
 
 const app = new Hono<{ Bindings: Env }>()
 
-
 app.post('/rm/hook', async (c) => {
   const body = await c.req.arrayBuffer();
   const signature = c.req.header('x-hub-signature-256');
+  const event = c.req.header('x-github-event');
 
   if (!await verifyGithubSignature(signature, body, c.env.GITHUB_WEBHOOK_SECRET)) {
     return c.text('Unauthorized', 401);
   }
+  
+  if (event == "ping") {
+    return c.json({
+      message: 'pong! :D'
+    }, 200)
+  }
+  
   const json = await c.req.json();
   if (json.action !== 'created' || !json.release?.draft) {
     return c.text('Skipped', 200);
