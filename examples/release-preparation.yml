@@ -1,8 +1,8 @@
 name: Release Preparation
 
 on:
-  release:
-    types: [created]
+  repository_dispatch:
+    types: [on-draft-release-created]
 
 jobs:
   call-prep:

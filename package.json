@@ -1,0 +1,16 @@
+{
+  "name": "release-manager",
+  "type": "module",
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy --minify",
+    "cf-typegen": "wrangler types --env-interface CloudflareBindings"
+  },
+  "dependencies": {
+    "hono": "^4.11.9"
+  },
+  "devDependencies": {
+    "wrangler": "^4.4.0"
+  }
+}

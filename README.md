@@ -1,4 +1,4 @@
-# fedi-libs Auto Releaser
+# fedi-libs Release Manager
 
 A reusable GitHub Actions workflow for automated Python package releases, specifically designed for `fedi-libs` projects. It leverages GitHub Apps for bot interactions, `git-cliff` for changelog generation, and Trusted Publishing (OIDC) for secure PyPI deployments.
 
@@ -19,8 +19,18 @@ The workflow consists of three phases:
 3.  **Finalization**: When the PR is merged, the package is published to PyPI, and the GitHub Release is moved from Draft to Published.
 
 ## Usage in Your Project
-
 To use this workflow in your repository, create the following files:
+
+### Prerequires
+for GitHub Actions limitations, this release-manager needs minimal "proxy" with GitHub webhook.
+
+The proxy is included in this repository. If you have a Cloudflare account, you can deploy it immediately.
+
+```bash
+git clone https://github.com/fedi-libs/release-manager.GitHub
+pnpm install
+pnpm deploy
+```
 
 ### 1. Release Preparation (`.github/workflows/release-preparation.yml`)
 
