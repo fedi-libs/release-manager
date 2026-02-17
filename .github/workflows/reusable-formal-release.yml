@@ -46,7 +46,6 @@ jobs:
           private-key: ${{ secrets.private_key }}
 
       - name: Checkout code
-        if: ${{ inputs.phase == '1' }}
         uses: actions/checkout@v4
         with:
           token: ${{ steps.app-token.outputs.token }}

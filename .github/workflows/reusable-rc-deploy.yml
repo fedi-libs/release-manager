@@ -79,7 +79,6 @@ jobs:
             return pr;
 
       - name: Checkout code
-        if: ${{ inputs.phase == '1' }}
         uses: actions/checkout@v4
         with:
           ref: ${{ fromJson(steps.get_pr.outputs.result).head.ref }}
@@ -90,7 +89,6 @@ jobs:
         if: ${{ inputs.phase == '1' }}
         id: create_deployment
         run: |
-          # outputs.result を fromJson 経由で参照
           REF="${{ fromJson(steps.get_pr.outputs.result).head.ref }}"
           DEPLOY_ID=$(gh api repos/:owner/:repo/deployments \
             -f ref="$REF" \
