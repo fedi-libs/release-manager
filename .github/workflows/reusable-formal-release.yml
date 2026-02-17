@@ -59,17 +59,19 @@ jobs:
           REF="${{ fromJson(steps.get_pr.outputs.result).head.ref }}"
           DEPLOY_ID=$(gh api repos/:owner/:repo/deployments \
             -f ref="$REF" \
-            -f environment="pypi" \
-            -f description="Deploying release version" \
+            -f environment="testpypi" \
+            -f description="Deploying RC version" \
             --jq '.id')
+          
           echo "deployment_id=$DEPLOY_ID" >> $GITHUB_OUTPUT
+          echo "CURRENT_DEPLOY_ID=$DEPLOY_ID" >> $GITHUB_ENV
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
 
       - name: Set Deployment In-Progress
         if: ${{ inputs.phase == '1' }}
         run: |
-          gh api repos/:owner/:repo/deployments/${{ steps.create_deployment.outputs.deployment_id }}/statuses \
+          gh api repos/:owner/:repo/deployments/$CURRENT_DEPLOY_ID/statuses \
             -f state="in_progress" \
             -f log_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
         env:
