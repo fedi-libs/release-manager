@@ -3,6 +3,9 @@ name: Reusable RC Deployment
 on:
   workflow_call:
     inputs:
+      phase:
+        required: true
+        type: string
       comment_user:
         required: true
         type: string
@@ -12,6 +15,13 @@ on:
       package_name:
         required: true
         type: string
+      rc_version:
+        required: false
+        type: string
+    outputs:
+      rc_version:
+        description: "Generated RC version"
+        value: ${{ jobs.deploy.outputs.rc_version }}
     secrets:
       app_id:
         required: true
@@ -21,8 +31,8 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
+    outputs:
+      rc_version: ${{ steps.versioning.outputs.rc_version }}
     steps:
       - name: Create GitHub App Token
         id: app-token
@@ -32,7 +42,7 @@ jobs:
           private-key: ${{ secrets.private_key }}
 
       - name: Check permissions
-        id: check_permission
+        if: ${{ inputs.phase == '1' }}
         uses: actions/github-script@v7
         with:
           github-token: ${{ steps.app-token.outputs.token }}
@@ -46,6 +56,7 @@ jobs:
             if (!allowed) core.setFailed('User does not have permission to deploy');
 
       - name: Get PR details
+        if: ${{ inputs.phase == '1' }}
         id: get_pr
         uses: actions/github-script@v7
         with:
@@ -61,6 +72,7 @@ jobs:
             return pr;
 
       - name: Checkout code
+        if: ${{ inputs.phase == '1' }}
         uses: actions/checkout@v4
         with:
           ref: ${{ fromJson(steps.get_pr.outputs.result).head.ref }}
@@ -68,6 +80,7 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Generate RC Version
+        if: ${{ inputs.phase == '1' }}
         id: versioning
         run: |
           BRANCH_NAME="${{ fromJson(steps.get_pr.outputs.result).head.ref }}"
@@ -80,26 +93,29 @@ jobs:
           echo "HATCH_VCS_VERSION_FILE_VERSION=${RC_VERSION}" >> $GITHUB_ENV
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v6
-        with:
-            version: ">=0.7.21,<0.10"
+        if: ${{ inputs.phase == '1' }}
+        uses: astral-sh/setup-uv@v5
 
       - name: Build Package
+        if: ${{ inputs.phase == '1' }}
         run: |
           uv sync --locked
           uv build
 
-      - name: Publish to TestPyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+      - name: Upload dist
+        if: ${{ inputs.phase == '1' }}
+        uses: actions/upload-artifact@v4
         with:
-          repository-url: https://test.pypi.org/legacy/
+          name: dist
+          path: dist/
 
       - name: Comment on PR
+        if: ${{ inputs.phase == '2' }}
         uses: actions/github-script@v7
         with:
           github-token: ${{ steps.app-token.outputs.token }}
           script: |
-            const rcVersion = "${{ steps.versioning.outputs.rc_version }}";
+            const rcVersion = "${{ inputs.rc_version }}";
             const packageName = "${{ inputs.package_name }}";
             const body = `🚀 **TestPyPI Deployment Successful!**
 

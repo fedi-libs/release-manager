@@ -3,6 +3,9 @@ name: Reusable Formal Release
 on:
   workflow_call:
     inputs:
+      phase:
+        required: true
+        type: string
       head_ref:
         required: true
         type: string
@@ -19,6 +22,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
+      contents: write
       id-token: write
     steps:
       - name: Create GitHub App Token
@@ -29,37 +33,46 @@ jobs:
           private-key: ${{ secrets.private_key }}
 
       - name: Checkout code
+        if: ${{ inputs.phase == '1' }}
         uses: actions/checkout@v4
         with:
           token: ${{ steps.app-token.outputs.token }}
           fetch-depth: 0
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v6
-        with:
-            version: ">=0.7.21,<0.10"
+        if: ${{ inputs.phase == '1' }}
+        uses: astral-sh/setup-uv@v5
 
       - name: Build Package
+        if: ${{ inputs.phase == '1' }}
         run: |
           uv sync --locked
           uv build
 
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+      - name: Upload dist
+        if: ${{ inputs.phase == '1' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
 
       - name: Update and Publish GitHub Release
+        if: ${{ inputs.phase == '2' }}
         uses: actions/github-script@v7
+        env:
+          PR_BODY: ${{ inputs.pr_body }}
         with:
           github-token: ${{ steps.app-token.outputs.token }}
           script: |
             const branchName = "${{ inputs.head_ref }}";
             const tagName = branchName.replace('release/', '');
-            const prBody = `${{ inputs.pr_body }}`;
+            const prBody = process.env.PR_BODY;
 
             const { data: releases } = await github.rest.repos.listReleases({
               owner: context.repo.owner,
               repo: context.repo.repo
             });
+            
             const draftRelease = releases.find(r => r.tag_name === tagName && r.draft);
 
             if (draftRelease) {
@@ -70,6 +83,7 @@ jobs:
                 body: prBody,
                 draft: false
               });
+              console.log(`Successfully published release: ${tagName}`);
             } else {
               core.setFailed(`No draft release found for tag: ${tagName}`);
             }
