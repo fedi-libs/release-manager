@@ -1,0 +1,65 @@
+name: Reusable Release Preparation
+
+on:
+  workflow_call:
+    inputs:
+      tag_name:
+        required: true
+        type: string
+      base_branch:
+        required: false
+        type: string
+        default: main
+    secrets:
+      app_id:
+        required: true
+      private_key:
+        required: true
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create GitHub App Token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.app_id }}
+          private-key: ${{ secrets.private_key }}
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Install git-cliff
+        uses: kenji-miyake/setup-git-cliff@v1
+
+      - name: Get shared cliff.toml
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/fedi-libs/release-manager/main/cliff.toml -o shared-cliff.toml
+
+      - name: Generate Changelog
+        id: changelog
+        run: |
+          git-cliff --config shared-cliff.toml --tag ${{ inputs.tag_name }} --latest --strip header > CHANGELOG_DIFF.md
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          cat CHANGELOG_DIFF.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create Release Branch
+        run: |
+          git checkout -b release/${{ inputs.tag_name }}
+          git push origin release/${{ inputs.tag_name }}
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          branch: release/${{ inputs.tag_name }}
+          title: "Release: v${{ inputs.tag_name }}"
+          body: ${{ steps.changelog.outputs.body }}
+          base: ${{ inputs.base_branch }}

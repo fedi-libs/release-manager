@@ -1,0 +1,15 @@
+name: Release Preparation
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  call-prep:
+    if: github.event.release.draft == true
+    uses: fedi-libs/release-manager/.github/workflows/reusable-release-prep.yml@main
+    with:
+      tag_name: ${{ github.event.release.tag_name }}
+    secrets:
+      app_id: ${{ secrets.RELEASE_BOT_APP_ID }}
+      private_key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}

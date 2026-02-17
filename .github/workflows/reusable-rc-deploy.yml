@@ -1,0 +1,117 @@
+name: Reusable RC Deployment
+
+on:
+  workflow_call:
+    inputs:
+      comment_user:
+        required: true
+        type: string
+      pr_number:
+        required: true
+        type: number
+      package_name:
+        required: true
+        type: string
+    secrets:
+      app_id:
+        required: true
+      private_key:
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - name: Create GitHub App Token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.app_id }}
+          private-key: ${{ secrets.private_key }}
+
+      - name: Check permissions
+        id: check_permission
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const { data: permission } = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: "${{ inputs.comment_user }}"
+            });
+            const allowed = ['admin', 'write'].includes(permission.permission);
+            if (!allowed) core.setFailed('User does not have permission to deploy');
+
+      - name: Get PR details
+        id: get_pr
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: ${{ inputs.pr_number }}
+            });
+            if (!pr.draft) core.setFailed('Deployment only allowed for Draft PRs');
+            if (!pr.head.ref.startsWith('release/')) core.setFailed('Deployment only allowed for release branches');
+            return pr;
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ fromJson(steps.get_pr.outputs.result).head.ref }}
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Generate RC Version
+        id: versioning
+        run: |
+          BRANCH_NAME="${{ fromJson(steps.get_pr.outputs.result).head.ref }}"
+          BASE_TAG="${BRANCH_NAME#release/}"
+          BASE_VERSION="${BASE_TAG#v}"
+          EPOCH=$(date +%s)
+          RC_VERSION="${BASE_VERSION}rc${EPOCH}"
+          echo "rc_version=${RC_VERSION}" >> $GITHUB_OUTPUT
+          echo "SETUPTOOLS_SCM_PRETEND_VERSION=${RC_VERSION}" >> $GITHUB_ENV
+          echo "HATCH_VCS_VERSION_FILE_VERSION=${RC_VERSION}" >> $GITHUB_ENV
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+            version: ">=0.7.21,<0.10"
+
+      - name: Build Package
+        run: |
+          uv sync --locked
+          uv build
+
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const rcVersion = "${{ steps.versioning.outputs.rc_version }}";
+            const packageName = "${{ inputs.package_name }}";
+            const body = `🚀 **TestPyPI Deployment Successful!**
+
+            Version: \`${rcVersion}\`
+            Install command:
+            \`\`\`bash
+            pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ ${packageName}==${rcVersion}
+            \`\`\``;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ inputs.pr_number }},
+              body: body
+            });
