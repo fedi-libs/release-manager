@@ -27,7 +27,7 @@ for GitHub Actions limitations, this release-manager needs minimal "proxy" with 
 The proxy is included in this repository. If you have a Cloudflare account, you can deploy it immediately.
 
 ```bash
-git clone https://github.com/fedi-libs/release-manager.GitHub
+git clone https://github.com/fedi-libs/release-manager.git
 pnpm install
 pnpm deploy
 ```
