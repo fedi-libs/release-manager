@@ -63,7 +63,6 @@ jobs:
             if (!allowed) core.setFailed('User does not have permission to deploy');
 
       - name: Get PR details
-        if: ${{ inputs.phase == '1' }}
         id: get_pr
         uses: actions/github-script@v7
         with:
