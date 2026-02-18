@@ -14,6 +14,10 @@ on:
         required: false
         type: string
         default: main
+      exclude_list:
+        required: false
+        default: "chore,test,ci,docs,style"
+
     secrets:
       app_id:
         required: true
@@ -38,42 +42,65 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
           ref: ${{ inputs.target_branch }}
 
-      - name: Install git-cliff
-        uses: kenji-miyake/setup-git-cliff@v1
-
-      - name: Get shared cliff.toml
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/fedi-libs/release-manager/main/cliff.toml -o shared-cliff.toml
-
       - name: Generate Changelog
         id: changelog
-        run: |
-          git-cliff --config shared-cliff.toml --tag ${{ inputs.tag_name }} --latest --strip header > CHANGELOG_DIFF.md
-          echo "body<<EOF" >> $GITHUB_OUTPUT
-          cat CHANGELOG_DIFF.md >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const excludeInput = "${{ inputs.exclude_list }}";
 
-      - name: Cleanup temporary files
-        run: |
-          rm shared-cliff.toml CHANGELOG_DIFF.md
+            const { execSync } = require('child_process');
 
-      - name: Create empty commit
+            const tags = execSync('git tag --sort=-v:refname | head -n 2').toString().split('\n').filter(Boolean);
+            const range = tags.length > 1 ? `${tags[1]}..${tags[0]}` : tags[0];
+            const logs = execSync(`git log ${range} --format="%s"`).toString().split('\n').filter(Boolean);
+
+            const categories = {
+              feat: 'Features',
+              fix: 'Bug Fixes',
+              perf: 'Performance',
+              refactor: 'Refactor'
+            };
+            const excludeTypes = new Set(excludeInput.split(',').map(s => s.trim()));
+
+            const structuredLogs = {};
+            for (const msg of logs) {
+              const match = msg.match(/^(\w+)(\(([^)]+)\))?!?: (.*)/);
+              if (!match) continue;
+
+              const type = match[1];
+              const scope = match[3];
+              const subject = match[4];
+
+              if (excludeTypes.has(type) || !categories[type]) continue;
+
+              if (!structuredLogs[type]) structuredLogs[type] = [];
+              const line = scope ? `* **${scope}**: ${subject}` : `* ${subject}`;
+              structuredLogs[type].push(line);
+            }
+
+            let changelog = `## Release ${tags[0] || 'Draft'}\n\n`;
+            for (const [type, title] of Object.entries(categories)) {
+              const items = structuredLogs[type];
+              if (items && items.length > 0) {
+                changelog += `### ${title}\n${items.join('\n')}\n\n`;
+              }
+            }
+
+            core.setOutput('changelog', changelog);
+
+      - name: Create Release Branch
         run: |
           git config user.name "fedi-libs-release-bot[bot]"
           git config user.email "${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com"
-          
-          git fetch origin ${{ inputs.target_branch }}
+
           git checkout -B release/${{ inputs.tag_name }} origin/${{ inputs.target_branch }}
-
-          git fetch origin ${{ inputs.base_branch }}
-          git merge origin/${{ inputs.base_branch }} -s ours -m "chore: ignore divergent history from stable [skip cliff]"
-
           git push origin release/${{ inputs.tag_name }} --force
 
       - name: Create Pull Request with gh
         run: |
           cat << 'EOF' > pr_body.txt
-          ${{ steps.changelog.outputs.body }}
+          ${{ steps.changelog.outputs.changelog }}
           EOF
 
           gh pr create \
