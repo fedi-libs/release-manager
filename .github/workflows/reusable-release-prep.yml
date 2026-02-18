@@ -45,15 +45,13 @@ jobs:
 
       - name: Generate Changelog
         id: changelog
-        uses: actions/github-script@v8
+        uses: actions/github-script@v7
         with:
           script: |
+            const { execSync } = require('child_process');
             const excludeInput = "${{ inputs.exclude_list }}";
 
-            const { execSync } = require('child_process');
-
-            const tags = execSync('git tag --sort=-v:refname | head -n 2').toString().split('\n').filter(Boolean);
-            const range = tags.length > 1 ? `${tags[1]}..${tags[0]}` : tags[0];
+            const range = `origin/${{ inputs.base_branch }}..origin/${{ inputs.target_branch }}`;
             const logs = execSync(`git log ${range} --format="%s"`).toString().split('\n').filter(Boolean);
 
             const categories = {
@@ -80,13 +78,17 @@ jobs:
               structuredLogs[type].push(line);
             }
 
-            let changelog = `## Release ${tags[0] || 'Draft'}\n\n`;
+            let changelog = `## Release ${{ inputs.tag_name }}\n\n`;
+            let hasContent = false;
             for (const [type, title] of Object.entries(categories)) {
               const items = structuredLogs[type];
               if (items && items.length > 0) {
                 changelog += `### ${title}\n${items.join('\n')}\n\n`;
+                hasContent = true;
               }
             }
+
+            if (!hasContent) changelog += "Maintenance and internal improvements.\n\n";
 
             core.setOutput('changelog', changelog);
 
